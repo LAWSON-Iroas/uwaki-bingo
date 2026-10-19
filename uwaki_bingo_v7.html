@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff6fa">
+  <title>浮気？ 浮気じゃない？ BINGO</title>
+  <style>
+
+    :root { color-scheme: light; --ink:#443340; --sub:#866f7d; --rose:#d8417b; --rose-dark:#a72a5a; --soft:#ffe1eb; --edge:#eadde3; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100dvh; padding:22px 12px max(38px, env(safe-area-inset-bottom)); color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+      background:radial-gradient(ellipse at 14% 0%,#ffe0ec 0%, transparent 39%),radial-gradient(ellipse at 98% 95%,#ece0ff 0%, transparent 45%),#fff9fb;
+    }
+    main { width:100%; max-width:620px; margin:auto; }
+    .eyebrow { margin:5px 0 3px; text-align:center; color:#aa6485; font-size:11px; font-weight:900; letter-spacing:.27em; }
+    h1 { text-align:center; font-size:clamp(23px,6.3vw,32px); line-height:1.3; margin:6px 0 10px; letter-spacing:-.05em; }
+    .intro { margin:0 auto 19px; text-align:center; line-height:1.75; font-size:12px; color:#695260; }
+    .paper { display:flex; flex-direction:column; counter-reset:chosen bingo; background:rgba(255,255,255,.94); border:1px solid #fff; border-radius:22px; padding:13px; box-shadow:0 15px 50px rgba(124,44,82,.10); }
+    .stats { order:1; display:flex; justify-content:space-between; align-items:center; padding:0 5px 12px; gap:8px; }
+    .stat { display:flex; gap:5px; align-items:baseline; }
+    .stat strong { color:var(--rose); font-size:26px; font-variant-numeric:tabular-nums; font-weight:900; }
+    .stat span { font-size:11px; color:var(--sub); }
+    .board { order:2; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; }
+    .tile { position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; min-width:0; width:100%; min-height:111px;
+      padding:8px 4px; border:1px solid var(--edge); border-radius:10px; background:#fff; color:var(--ink);
+      font-family:inherit; font-size:clamp(10px,2.65vw,13px); line-height:1.4; font-weight:700; text-align:center;
+      letter-spacing:-.045em; overflow-wrap:anywhere; cursor:pointer; touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent; transition:background .14s,border-color .14s,transform .12s; }
+    .tile:active { transform:scale(.96); }
+    .tile:focus-within { outline:3px solid #8553b1; outline-offset:2px; }
+    .tile:has(.tile-radio[value="pink"]:checked) { background:var(--soft); border-color:#eb9bb8; color:var(--rose-dark); }
+    .tile.center { border:2px solid #e2759f; }
+    .tile.bingo { box-shadow:inset 0 0 0 2px #c42e6e; }
+    .stamp { display:none; font-size:9px; font-weight:900; line-height:1.2; border-radius:100px; padding:3px 5px; color:white; background:var(--rose); }
+    .tile:has(.tile-radio[value="pink"]:checked) .stamp-pink { display:block; }
+    .tile:has(.tile-radio[value="blue"]:checked) { background:#e1f1ff; border-color:#9dc4ed; color:#245880; }
+    .tile:has(.tile-radio[value="blue"]:checked) .stamp-blue { display:block; background:#397db9; }
+    .tile .phrase, .tile .stamp { position:relative; z-index:1; pointer-events:none; }
+    /* Exactly one transparent tap target is enabled for each of the three states. */
+    .tap-layer { display:none; position:absolute; inset:0; z-index:2; cursor:pointer; border-radius:inherit; touch-action:manipulation; }
+    .tile:has(.tile-radio[value="clear"]:checked) .tap-clear,
+    .tile:has(.tile-radio[value="pink"]:checked) .tap-pink,
+    .tile:has(.tile-radio[value="blue"]:checked) .tap-blue { display:block; }
+    .result { order:3; text-align:center; min-height:58px; padding:16px 3px 4px; font-size:14px; font-weight:900; }
+    .result small { display:block; margin-top:5px; color:var(--sub); font-size:11px; font-weight:500; }
+    .result.win { color:var(--rose-dark); font-size:21px; }
+    .actions { display:flex; gap:10px; margin:17px 0 0; }
+    .actions button { flex:1; min-width:0; border-radius:12px; border:1px solid #e6adc4; padding:13px 7px; font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+    .actions .reset { background:white; color:#a03966; }
+    .actions .shuffle { background:var(--rose); color:white; border-color:var(--rose); }
+    .actions .shuffle:disabled { background:#cda7b7; border-color:#cda7b7; cursor:not-allowed; }
+    .footnote { margin:15px 5px 0; text-align:center; color:#8a7580; font-size:11px; line-height:1.8; }
+    @media (max-width:400px) {
+      body { padding-left:8px; padding-right:8px; }
+      .paper { padding:8px; border-radius:16px; }
+      .board { gap:4px; }
+      .tile { min-height:101px; padding:6px 2px; border-radius:8px; font-size:clamp(9.5px,2.63vw,11px); }
+      .stamp { font-size:8px; }
+    }
+    @media print { body { background:white; padding:0; } .paper { box-shadow:none; } .actions,.footnote {display:none;} }
+    @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+  
+
+    /* HTML radios make the complete 3-state tap cycle work without JavaScript. */
+    .tile-radio { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+    .tile { user-select:none; -webkit-user-select:none; }
+    .tile:has(.tile-radio[value="pink"]:checked) { counter-increment:chosen; }
+    .line-markers { position:absolute; width:0; height:0; overflow:hidden; }
+    .line-markers span { position:absolute; font-size:0; }
+    #count::before { content:counter(chosen); }
+    #bingoCount::before { content:counter(bingo); }
+    #result .won { display:none; }
+    #result .default { display:block; }
+    #result .won small { font-size:11px; font-weight:500; color:var(--sub); }
+    #result .won small::before { content:counter(bingo) "ライン成立！"; }
+    #result .default small { display:block; margin-top:5px; color:var(--sub); font-size:11px; font-weight:500; }
+
+    /* CSS-only BINGO tally (works even when a file preview blocks JavaScript). */
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(5) .tile-radio[value="pink"]:checked) + .line-markers .marker-0 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked) + .line-markers .marker-1 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked) + .line-markers .marker-2 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked) + .line-markers .marker-3 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(21) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) + .line-markers .marker-4 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) + .line-markers .marker-5 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked) + .line-markers .marker-6 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked) + .line-markers .marker-7 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked) + .line-markers .marker-8 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) + .line-markers .marker-9 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) + .line-markers .marker-10 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) + .line-markers .marker-11 { counter-increment: bingo; }
+
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(5) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(21) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .won,
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) ~ #result .won { display:block; color:var(--rose-dark); font-size:21px; }
+
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(5) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(21) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(6) .tile-radio[value="pink"]:checked):has(.tile:nth-child(11) .tile-radio[value="pink"]:checked):has(.tile:nth-child(16) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(2) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(12) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(22) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(3) .tile-radio[value="pink"]:checked):has(.tile:nth-child(8) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(18) .tile-radio[value="pink"]:checked):has(.tile:nth-child(23) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(4) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(14) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(24) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(10) .tile-radio[value="pink"]:checked):has(.tile:nth-child(15) .tile-radio[value="pink"]:checked):has(.tile:nth-child(20) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(1) .tile-radio[value="pink"]:checked):has(.tile:nth-child(7) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(19) .tile-radio[value="pink"]:checked):has(.tile:nth-child(25) .tile-radio[value="pink"]:checked) ~ #result .default,
+    #board:has(.tile:nth-child(5) .tile-radio[value="pink"]:checked):has(.tile:nth-child(9) .tile-radio[value="pink"]:checked):has(.tile:nth-child(13) .tile-radio[value="pink"]:checked):has(.tile:nth-child(17) .tile-radio[value="pink"]:checked):has(.tile:nth-child(21) .tile-radio[value="pink"]:checked) ~ #result .default { display:none; }
+
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">LOVE &amp; BOUNDARIES</p>
+  <h1>浮気？ 浮気じゃない？<br>BINGO ♡</h1>
+  <p class="intro">1回目はピンクの「浮気」、2回目はブルーの「ちょっとやだ」。<br>3回目で選択解除。<br>ピンクが縦・横・斜めに5マス揃うとビンゴ。お前、何個ビンゴ！？</p>
+  <form id="bingo-form" autocomplete="off">
+  <section class="paper" aria-label="浮気判定ビンゴカード">
+    <div id="board" class="board">
+      <div class="tile" data-index="0">
+        <input class="tile-radio" type="radio" id="choice-0-clear" name="choice-0" value="clear" checked aria-label="異性と2人きりで帰りのタクシー：選択なし">
+        <input class="tile-radio" type="radio" id="choice-0-pink" name="choice-0" value="pink" aria-label="異性と2人きりで帰りのタクシー：浮気">
+        <input class="tile-radio" type="radio" id="choice-0-blue" name="choice-0" value="blue" aria-label="異性と2人きりで帰りのタクシー：ちょっとやだ">
+        <span class="phrase">異性と2人きりで帰りのタクシー</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-0-pink" aria-label="異性と2人きりで帰りのタクシー：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-0-blue" aria-label="異性と2人きりで帰りのタクシー：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-0-clear" aria-label="異性と2人きりで帰りのタクシー：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="1">
+        <input class="tile-radio" type="radio" id="choice-1-clear" name="choice-1" value="clear" checked aria-label="異性と描写を回す(R18G)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-1-pink" name="choice-1" value="pink" aria-label="異性と描写を回す(R18G)：浮気">
+        <input class="tile-radio" type="radio" id="choice-1-blue" name="choice-1" value="blue" aria-label="異性と描写を回す(R18G)：ちょっとやだ">
+        <span class="phrase">異性と描写を回す(R18G)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-1-pink" aria-label="異性と描写を回す(R18G)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-1-blue" aria-label="異性と描写を回す(R18G)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-1-clear" aria-label="異性と描写を回す(R18G)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="2">
+        <input class="tile-radio" type="radio" id="choice-2-clear" name="choice-2" value="clear" checked aria-label="2人で新しいゲームを同時に始める：選択なし">
+        <input class="tile-radio" type="radio" id="choice-2-pink" name="choice-2" value="pink" aria-label="2人で新しいゲームを同時に始める：浮気">
+        <input class="tile-radio" type="radio" id="choice-2-blue" name="choice-2" value="blue" aria-label="2人で新しいゲームを同時に始める：ちょっとやだ">
+        <span class="phrase">2人で新しいゲームを同時に始める</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-2-pink" aria-label="2人で新しいゲームを同時に始める：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-2-blue" aria-label="2人で新しいゲームを同時に始める：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-2-clear" aria-label="2人で新しいゲームを同時に始める：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="3">
+        <input class="tile-radio" type="radio" id="choice-3-clear" name="choice-3" value="clear" checked aria-label="異性におはおやメッセージ送る：選択なし">
+        <input class="tile-radio" type="radio" id="choice-3-pink" name="choice-3" value="pink" aria-label="異性におはおやメッセージ送る：浮気">
+        <input class="tile-radio" type="radio" id="choice-3-blue" name="choice-3" value="blue" aria-label="異性におはおやメッセージ送る：ちょっとやだ">
+        <span class="phrase">異性におはおやメッセージ送る</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-3-pink" aria-label="異性におはおやメッセージ送る：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-3-blue" aria-label="異性におはおやメッセージ送る：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-3-clear" aria-label="異性におはおやメッセージ送る：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="4">
+        <input class="tile-radio" type="radio" id="choice-4-clear" name="choice-4" value="clear" checked aria-label="異性にスタバチケットとかアマギフ贈る：選択なし">
+        <input class="tile-radio" type="radio" id="choice-4-pink" name="choice-4" value="pink" aria-label="異性にスタバチケットとかアマギフ贈る：浮気">
+        <input class="tile-radio" type="radio" id="choice-4-blue" name="choice-4" value="blue" aria-label="異性にスタバチケットとかアマギフ贈る：ちょっとやだ">
+        <span class="phrase">異性にスタバチケットとかアマギフ贈る</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-4-pink" aria-label="異性にスタバチケットとかアマギフ贈る：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-4-blue" aria-label="異性にスタバチケットとかアマギフ贈る：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-4-clear" aria-label="異性にスタバチケットとかアマギフ贈る：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="5">
+        <input class="tile-radio" type="radio" id="choice-5-clear" name="choice-5" value="clear" checked aria-label="異性と2人きりでゲームを1時間以上(配信外)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-5-pink" name="choice-5" value="pink" aria-label="異性と2人きりでゲームを1時間以上(配信外)：浮気">
+        <input class="tile-radio" type="radio" id="choice-5-blue" name="choice-5" value="blue" aria-label="異性と2人きりでゲームを1時間以上(配信外)：ちょっとやだ">
+        <span class="phrase">異性と2人きりでゲームを1時間以上(配信外)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-5-pink" aria-label="異性と2人きりでゲームを1時間以上(配信外)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-5-blue" aria-label="異性と2人きりでゲームを1時間以上(配信外)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-5-clear" aria-label="異性と2人きりでゲームを1時間以上(配信外)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="6">
+        <input class="tile-radio" type="radio" id="choice-6-clear" name="choice-6" value="clear" checked aria-label="異性と深夜にメシ行く：選択なし">
+        <input class="tile-radio" type="radio" id="choice-6-pink" name="choice-6" value="pink" aria-label="異性と深夜にメシ行く：浮気">
+        <input class="tile-radio" type="radio" id="choice-6-blue" name="choice-6" value="blue" aria-label="異性と深夜にメシ行く：ちょっとやだ">
+        <span class="phrase">異性と深夜にメシ行く</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-6-pink" aria-label="異性と深夜にメシ行く：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-6-blue" aria-label="異性と深夜にメシ行く：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-6-clear" aria-label="異性と深夜にメシ行く：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="7">
+        <input class="tile-radio" type="radio" id="choice-7-clear" name="choice-7" value="clear" checked aria-label="異性と描写を回す(戦闘)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-7-pink" name="choice-7" value="pink" aria-label="異性と描写を回す(戦闘)：浮気">
+        <input class="tile-radio" type="radio" id="choice-7-blue" name="choice-7" value="blue" aria-label="異性と描写を回す(戦闘)：ちょっとやだ">
+        <span class="phrase">異性と描写を回す(戦闘)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-7-pink" aria-label="異性と描写を回す(戦闘)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-7-blue" aria-label="異性と描写を回す(戦闘)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-7-clear" aria-label="異性と描写を回す(戦闘)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="8">
+        <input class="tile-radio" type="radio" id="choice-8-clear" name="choice-8" value="clear" checked aria-label="異性と2人きりで映画同時視聴：選択なし">
+        <input class="tile-radio" type="radio" id="choice-8-pink" name="choice-8" value="pink" aria-label="異性と2人きりで映画同時視聴：浮気">
+        <input class="tile-radio" type="radio" id="choice-8-blue" name="choice-8" value="blue" aria-label="異性と2人きりで映画同時視聴：ちょっとやだ">
+        <span class="phrase">異性と2人きりで映画同時視聴</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-8-pink" aria-label="異性と2人きりで映画同時視聴：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-8-blue" aria-label="異性と2人きりで映画同時視聴：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-8-clear" aria-label="異性と2人きりで映画同時視聴：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="9">
+        <input class="tile-radio" type="radio" id="choice-9-clear" name="choice-9" value="clear" checked aria-label="異性と話して食いたくなった物を同日にUber：選択なし">
+        <input class="tile-radio" type="radio" id="choice-9-pink" name="choice-9" value="pink" aria-label="異性と話して食いたくなった物を同日にUber：浮気">
+        <input class="tile-radio" type="radio" id="choice-9-blue" name="choice-9" value="blue" aria-label="異性と話して食いたくなった物を同日にUber：ちょっとやだ">
+        <span class="phrase">異性と話して食いたくなった物を同日にUber</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-9-pink" aria-label="異性と話して食いたくなった物を同日にUber：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-9-blue" aria-label="異性と話して食いたくなった物を同日にUber：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-9-clear" aria-label="異性と話して食いたくなった物を同日にUber：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="10">
+        <input class="tile-radio" type="radio" id="choice-10-clear" name="choice-10" value="clear" checked aria-label="異性と二人きりで恋バナをする：選択なし">
+        <input class="tile-radio" type="radio" id="choice-10-pink" name="choice-10" value="pink" aria-label="異性と二人きりで恋バナをする：浮気">
+        <input class="tile-radio" type="radio" id="choice-10-blue" name="choice-10" value="blue" aria-label="異性と二人きりで恋バナをする：ちょっとやだ">
+        <span class="phrase">異性と二人きりで恋バナをする</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-10-pink" aria-label="異性と二人きりで恋バナをする：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-10-blue" aria-label="異性と二人きりで恋バナをする：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-10-clear" aria-label="異性と二人きりで恋バナをする：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="11">
+        <input class="tile-radio" type="radio" id="choice-11-clear" name="choice-11" value="clear" checked aria-label="悩んだ時に恋人より異性にまず聞く：選択なし">
+        <input class="tile-radio" type="radio" id="choice-11-pink" name="choice-11" value="pink" aria-label="悩んだ時に恋人より異性にまず聞く：浮気">
+        <input class="tile-radio" type="radio" id="choice-11-blue" name="choice-11" value="blue" aria-label="悩んだ時に恋人より異性にまず聞く：ちょっとやだ">
+        <span class="phrase">悩んだ時に恋人より異性にまず聞く</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-11-pink" aria-label="悩んだ時に恋人より異性にまず聞く：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-11-blue" aria-label="悩んだ時に恋人より異性にまず聞く：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-11-clear" aria-label="悩んだ時に恋人より異性にまず聞く：判定を解除"></label>
+      </div>
+      <div class="tile center" data-index="12">
+        <input class="tile-radio" type="radio" id="choice-12-clear" name="choice-12" value="clear" checked aria-label="恋人以外とキス：選択なし">
+        <input class="tile-radio" type="radio" id="choice-12-pink" name="choice-12" value="pink" aria-label="恋人以外とキス：浮気">
+        <input class="tile-radio" type="radio" id="choice-12-blue" name="choice-12" value="blue" aria-label="恋人以外とキス：ちょっとやだ">
+        <span class="phrase">恋人以外とキス</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-12-pink" aria-label="恋人以外とキス：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-12-blue" aria-label="恋人以外とキス：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-12-clear" aria-label="恋人以外とキス：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="13">
+        <input class="tile-radio" type="radio" id="choice-13-clear" name="choice-13" value="clear" checked aria-label="異性に仕事関連の相談：選択なし">
+        <input class="tile-radio" type="radio" id="choice-13-pink" name="choice-13" value="pink" aria-label="異性に仕事関連の相談：浮気">
+        <input class="tile-radio" type="radio" id="choice-13-blue" name="choice-13" value="blue" aria-label="異性に仕事関連の相談：ちょっとやだ">
+        <span class="phrase">異性に仕事関連の相談</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-13-pink" aria-label="異性に仕事関連の相談：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-13-blue" aria-label="異性に仕事関連の相談：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-13-clear" aria-label="異性に仕事関連の相談：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="14">
+        <input class="tile-radio" type="radio" id="choice-14-clear" name="choice-14" value="clear" checked aria-label="異性と描写を回す(日常)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-14-pink" name="choice-14" value="pink" aria-label="異性と描写を回す(日常)：浮気">
+        <input class="tile-radio" type="radio" id="choice-14-blue" name="choice-14" value="blue" aria-label="異性と描写を回す(日常)：ちょっとやだ">
+        <span class="phrase">異性と描写を回す(日常)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-14-pink" aria-label="異性と描写を回す(日常)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-14-blue" aria-label="異性と描写を回す(日常)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-14-clear" aria-label="異性と描写を回す(日常)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="15">
+        <input class="tile-radio" type="radio" id="choice-15-clear" name="choice-15" value="clear" checked aria-label="異性の家の近くに後から引っ越す：選択なし">
+        <input class="tile-radio" type="radio" id="choice-15-pink" name="choice-15" value="pink" aria-label="異性の家の近くに後から引っ越す：浮気">
+        <input class="tile-radio" type="radio" id="choice-15-blue" name="choice-15" value="blue" aria-label="異性の家の近くに後から引っ越す：ちょっとやだ">
+        <span class="phrase">異性の家の近くに後から引っ越す</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-15-pink" aria-label="異性の家の近くに後から引っ越す：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-15-blue" aria-label="異性の家の近くに後から引っ越す：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-15-clear" aria-label="異性の家の近くに後から引っ越す：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="16">
+        <input class="tile-radio" type="radio" id="choice-16-clear" name="choice-16" value="clear" checked aria-label="異性と描写を回す(スキンシップ)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-16-pink" name="choice-16" value="pink" aria-label="異性と描写を回す(スキンシップ)：浮気">
+        <input class="tile-radio" type="radio" id="choice-16-blue" name="choice-16" value="blue" aria-label="異性と描写を回す(スキンシップ)：ちょっとやだ">
+        <span class="phrase">異性と描写を回す(スキンシップ)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-16-pink" aria-label="異性と描写を回す(スキンシップ)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-16-blue" aria-label="異性と描写を回す(スキンシップ)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-16-clear" aria-label="異性と描写を回す(スキンシップ)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="17">
+        <input class="tile-radio" type="radio" id="choice-17-clear" name="choice-17" value="clear" checked aria-label="異性と二人きりで猥談をする：選択なし">
+        <input class="tile-radio" type="radio" id="choice-17-pink" name="choice-17" value="pink" aria-label="異性と二人きりで猥談をする：浮気">
+        <input class="tile-radio" type="radio" id="choice-17-blue" name="choice-17" value="blue" aria-label="異性と二人きりで猥談をする：ちょっとやだ">
+        <span class="phrase">異性と二人きりで猥談をする</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-17-pink" aria-label="異性と二人きりで猥談をする：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-17-blue" aria-label="異性と二人きりで猥談をする：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-17-clear" aria-label="異性と二人きりで猥談をする：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="18">
+        <input class="tile-radio" type="radio" id="choice-18-clear" name="choice-18" value="clear" checked aria-label="異性を仕事以外で家に呼んで2人きり：選択なし">
+        <input class="tile-radio" type="radio" id="choice-18-pink" name="choice-18" value="pink" aria-label="異性を仕事以外で家に呼んで2人きり：浮気">
+        <input class="tile-radio" type="radio" id="choice-18-blue" name="choice-18" value="blue" aria-label="異性を仕事以外で家に呼んで2人きり：ちょっとやだ">
+        <span class="phrase">異性を仕事以外で家に呼んで2人きり</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-18-pink" aria-label="異性を仕事以外で家に呼んで2人きり：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-18-blue" aria-label="異性を仕事以外で家に呼んで2人きり：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-18-clear" aria-label="異性を仕事以外で家に呼んで2人きり：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="19">
+        <input class="tile-radio" type="radio" id="choice-19-clear" name="choice-19" value="clear" checked aria-label="2人きりでハウジング(ゲーム)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-19-pink" name="choice-19" value="pink" aria-label="2人きりでハウジング(ゲーム)：浮気">
+        <input class="tile-radio" type="radio" id="choice-19-blue" name="choice-19" value="blue" aria-label="2人きりでハウジング(ゲーム)：ちょっとやだ">
+        <span class="phrase">2人きりでハウジング(ゲーム)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-19-pink" aria-label="2人きりでハウジング(ゲーム)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-19-blue" aria-label="2人きりでハウジング(ゲーム)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-19-clear" aria-label="2人きりでハウジング(ゲーム)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="20">
+        <input class="tile-radio" type="radio" id="choice-20-clear" name="choice-20" value="clear" checked aria-label="2人きりでランク(ゲーム)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-20-pink" name="choice-20" value="pink" aria-label="2人きりでランク(ゲーム)：浮気">
+        <input class="tile-radio" type="radio" id="choice-20-blue" name="choice-20" value="blue" aria-label="2人きりでランク(ゲーム)：ちょっとやだ">
+        <span class="phrase">2人きりでランク(ゲーム)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-20-pink" aria-label="2人きりでランク(ゲーム)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-20-blue" aria-label="2人きりでランク(ゲーム)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-20-clear" aria-label="2人きりでランク(ゲーム)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="21">
+        <input class="tile-radio" type="radio" id="choice-21-clear" name="choice-21" value="clear" checked aria-label="自分より先に異性と予定組む：選択なし">
+        <input class="tile-radio" type="radio" id="choice-21-pink" name="choice-21" value="pink" aria-label="自分より先に異性と予定組む：浮気">
+        <input class="tile-radio" type="radio" id="choice-21-blue" name="choice-21" value="blue" aria-label="自分より先に異性と予定組む：ちょっとやだ">
+        <span class="phrase">自分より先に異性と予定組む</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-21-pink" aria-label="自分より先に異性と予定組む：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-21-blue" aria-label="自分より先に異性と予定組む：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-21-clear" aria-label="自分より先に異性と予定組む：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="22">
+        <input class="tile-radio" type="radio" id="choice-22-clear" name="choice-22" value="clear" checked aria-label="異性と個別の帯がある：選択なし">
+        <input class="tile-radio" type="radio" id="choice-22-pink" name="choice-22" value="pink" aria-label="異性と個別の帯がある：浮気">
+        <input class="tile-radio" type="radio" id="choice-22-blue" name="choice-22" value="blue" aria-label="異性と個別の帯がある：ちょっとやだ">
+        <span class="phrase">異性と個別の帯がある</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-22-pink" aria-label="異性と個別の帯がある：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-22-blue" aria-label="異性と個別の帯がある：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-22-clear" aria-label="異性と個別の帯がある：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="23">
+        <input class="tile-radio" type="radio" id="choice-23-clear" name="choice-23" value="clear" checked aria-label="異性と描写を回す(R18)：選択なし">
+        <input class="tile-radio" type="radio" id="choice-23-pink" name="choice-23" value="pink" aria-label="異性と描写を回す(R18)：浮気">
+        <input class="tile-radio" type="radio" id="choice-23-blue" name="choice-23" value="blue" aria-label="異性と描写を回す(R18)：ちょっとやだ">
+        <span class="phrase">異性と描写を回す(R18)</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-23-pink" aria-label="異性と描写を回す(R18)：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-23-blue" aria-label="異性と描写を回す(R18)：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-23-clear" aria-label="異性と描写を回す(R18)：判定を解除"></label>
+      </div>
+      <div class="tile" data-index="24">
+        <input class="tile-radio" type="radio" id="choice-24-clear" name="choice-24" value="clear" checked aria-label="異性と深夜のコンビニ：選択なし">
+        <input class="tile-radio" type="radio" id="choice-24-pink" name="choice-24" value="pink" aria-label="異性と深夜のコンビニ：浮気">
+        <input class="tile-radio" type="radio" id="choice-24-blue" name="choice-24" value="blue" aria-label="異性と深夜のコンビニ：ちょっとやだ">
+        <span class="phrase">異性と深夜のコンビニ</span>
+        <span class="stamp stamp-pink" aria-hidden="true">浮気！</span>
+        <span class="stamp stamp-blue" aria-hidden="true">ちょっとやだ</span>
+        <label class="tap-layer tap-clear" for="choice-24-pink" aria-label="異性と深夜のコンビニ：浮気と判定"></label>
+        <label class="tap-layer tap-pink" for="choice-24-blue" aria-label="異性と深夜のコンビニ：ちょっとやだと判定"></label>
+        <label class="tap-layer tap-blue" for="choice-24-clear" aria-label="異性と深夜のコンビニ：判定を解除"></label>
+      </div>
+    </div>
+    <div class="line-markers" aria-hidden="true"><span class="marker-0"></span><span class="marker-1"></span><span class="marker-2"></span><span class="marker-3"></span><span class="marker-4"></span><span class="marker-5"></span><span class="marker-6"></span><span class="marker-7"></span><span class="marker-8"></span><span class="marker-9"></span><span class="marker-10"></span><span class="marker-11"></span></div>
+    <div class="stats">
+      <div class="stat"><strong id="count" aria-label="浮気判定数"></strong><span>／25 浮気判定</span></div>
+      <div class="stat"><strong id="bingoCount" aria-label="ビンゴの数"></strong><span>BINGO</span></div>
+    </div>
+    <div id="result" class="result" role="status" aria-live="polite">
+      <div class="default">あなたの浮気ラインはどこ？<small>ビンゴは全12ライン</small></div>
+      <div class="won">♡ BINGO！ ♡<small></small></div>
+    </div>
+  </section>
+  <div class="actions">
+    <button class="reset" id="reset" type="reset">判定をリセット</button>
+    <button class="shuffle" id="shuffle" type="button" disabled>お題をシャッフル</button>
+  </div>
+  </form>
+  <p class="footnote">中央は必ず「恋人以外とキス」。<br>ピンク＝浮気、ブルー＝浮気じゃないけどちょっとやだ。<br>正解はなし！ 価値観の違いを楽しんでね。<br>対応ブラウザならシャッフルと判定の自動保存もできるよ。</p>
+</main>
+
+<script>
+/* Three-state selection works with HTML/CSS alone. JS adds shuffle and saving. */
+(function(){
+  'use strict';
+  var board = document.getElementById('board');
+  var tiles = Array.prototype.slice.call(board.querySelectorAll('.tile'));
+  var phrases = tiles.map(function(tile){ return tile.querySelector('.phrase'); });
+  var initial = phrases.map(function(el){ return el.textContent; });
+  var center = initial[12];
+  var order = initial.slice();
+  var key = 'uwaki-bingo-v7';
+  var states = ['clear', 'pink', 'blue'];
+
+  function choiceAt(i) {
+    var selected = tiles[i].querySelector('.tile-radio:checked');
+    return selected ? selected.value : 'clear';
+  }
+  function setChoice(i, value) {
+    var target = tiles[i].querySelector('.tile-radio[value="' + value + '"]');
+    if(target) target.checked = true;
+  }
+  function save() {
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        order:order,
+        chosen:tiles.map(function(_, i){ return choiceAt(i); })
+      }));
+    } catch(e) {}
+  }
+  function applyOrder() {
+    order.forEach(function(topic, i) {
+      phrases[i].textContent = topic;
+      tiles[i].querySelectorAll('.tile-radio').forEach(function(radio) {
+        radio.setAttribute('aria-label', topic + '：' +
+          (radio.value === 'pink' ? '浮気' : radio.value === 'blue' ? 'ちょっとやだ' : '選択なし'));
+      });
+      tiles[i].querySelector('.tap-clear').setAttribute('aria-label', topic + '：浮気と判定');
+      tiles[i].querySelector('.tap-pink').setAttribute('aria-label', topic + '：ちょっとやだと判定');
+      tiles[i].querySelector('.tap-blue').setAttribute('aria-label', topic + '：判定を解除');
+    });
+  }
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(key) || 'null');
+    if(saved && Array.isArray(saved.order) && saved.order.length === 25 &&
+       saved.order[12] === center && new Set(saved.order).size === 25 &&
+       saved.order.every(function(t){ return initial.indexOf(t) !== -1; })) {
+      order = saved.order;
+      applyOrder();
+      if(Array.isArray(saved.chosen) && saved.chosen.length === 25) {
+        saved.chosen.forEach(function(value, i) {
+          setChoice(i, states.indexOf(value) !== -1 ? value : 'clear');
+        });
+      }
+    }
+  } catch(e) {}
+
+  board.addEventListener('change', save);
+  // Native form reset works even when JavaScript is blocked; save the cleared state afterward.
+  document.getElementById('bingo-form').addEventListener('reset', function() {
+    setTimeout(save, 0);
+  });
+  var shuffleButton = document.getElementById('shuffle');
+  shuffleButton.disabled = false;
+  shuffleButton.addEventListener('click', function() {
+    if(tiles.some(function(_, i){return choiceAt(i) !== 'clear';}) &&
+       !confirm('判定をリセットしてお題をシャッフルする？')) return;
+    var other = order.filter(function(topic){return topic !== center;});
+    for(var i = other.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = other[i]; other[i] = other[j]; other[j] = temp;
+    }
+    other.splice(12, 0, center);
+    order = other;
+    tiles.forEach(function(_, i){ setChoice(i, 'clear'); });
+    applyOrder(); save();
+  });
+})();
+</script>
+
+</body>
+</html>
