@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff6fa">
+  <title>浮気？ 浮気じゃない？ BINGO</title>
+  <style>
+
+    :root { color-scheme: light; --ink:#443340; --sub:#866f7d; --rose:#d8417b; --rose-dark:#a72a5a; --soft:#ffe1eb; --edge:#eadde3; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100dvh; padding:22px 12px max(38px, env(safe-area-inset-bottom)); color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+      background:radial-gradient(ellipse at 14% 0%,#ffe0ec 0%, transparent 39%),radial-gradient(ellipse at 98% 95%,#ece0ff 0%, transparent 45%),#fff9fb;
+    }
+    main { width:100%; max-width:620px; margin:auto; }
+    .eyebrow { margin:5px 0 3px; text-align:center; color:#aa6485; font-size:11px; font-weight:900; letter-spacing:.27em; }
+    h1 { text-align:center; font-size:clamp(23px,6.3vw,32px); line-height:1.3; margin:6px 0 10px; letter-spacing:-.05em; }
+    .intro { margin:0 auto 19px; text-align:center; line-height:1.75; font-size:12px; color:#695260; }
+    .paper { display:flex; flex-direction:column; counter-reset:chosen bingo; background:rgba(255,255,255,.94); border:1px solid #fff; border-radius:22px; padding:13px; box-shadow:0 15px 50px rgba(124,44,82,.10); }
+    .stats { order:1; display:flex; justify-content:space-between; align-items:center; padding:0 5px 12px; gap:8px; }
+    .stat { display:flex; gap:5px; align-items:baseline; }
+    .stat strong { color:var(--rose); font-size:26px; font-variant-numeric:tabular-nums; font-weight:900; }
+    .stat span { font-size:11px; color:var(--sub); }
+    .board { order:2; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; }
+    .tile { position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; min-width:0; width:100%; min-height:111px;
+      padding:8px 4px; border:1px solid var(--edge); border-radius:10px; background:#fff; color:var(--ink);
+      font-family:inherit; font-size:clamp(10px,2.65vw,13px); line-height:1.4; font-weight:700; text-align:center;
+      letter-spacing:-.045em; overflow-wrap:anywhere; cursor:pointer; touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent; transition:background .14s,border-color .14s,transform .12s; }
+    .tile:active { transform:scale(.96); }
+    .tile:focus-within { outline:3px solid #8553b1; outline-offset:2px; }
+    .tile:has(.tile-check:checked) { background:var(--soft); border-color:#eb9bb8; color:var(--rose-dark); }
+    .tile.center { border:2px solid #e2759f; }
+    .tile.bingo { box-shadow:inset 0 0 0 2px #c42e6e; }
+    .stamp { display:none; font-size:9px; font-weight:900; line-height:1.2; border-radius:100px; padding:3px 7px; color:white; background:var(--rose); }
+    .tile:has(.tile-check:checked) .stamp { display:block; }
+    .result { order:3; text-align:center; min-height:58px; padding:16px 3px 4px; font-size:14px; font-weight:900; }
+    .result small { display:block; margin-top:5px; color:var(--sub); font-size:11px; font-weight:500; }
+    .result.win { color:var(--rose-dark); font-size:21px; }
+    .actions { display:flex; gap:10px; margin:17px 0 0; }
+    .actions button { flex:1; min-width:0; border-radius:12px; border:1px solid #e6adc4; padding:13px 7px; font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+    .actions .reset { background:white; color:#a03966; }
+    .actions .shuffle { background:var(--rose); color:white; border-color:var(--rose); }
+    .actions .shuffle:disabled { background:#cda7b7; border-color:#cda7b7; cursor:not-allowed; }
+    .footnote { margin:15px 5px 0; text-align:center; color:#8a7580; font-size:11px; line-height:1.8; }
+    @media (max-width:400px) {
+      body { padding-left:8px; padding-right:8px; }
+      .paper { padding:8px; border-radius:16px; }
+      .board { gap:4px; }
+      .tile { min-height:101px; padding:6px 2px; border-radius:8px; font-size:clamp(9.5px,2.63vw,11px); }
+      .stamp { font-size:8px; }
+    }
+    @media print { body { background:white; padding:0; } .paper { box-shadow:none; } .actions,.footnote {display:none;} }
+    @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+  
+
+    /* 25 tiles are already in the HTML; JS is optional for displaying/tapping. */
+    .tile-check { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+    .tile { user-select:none; -webkit-user-select:none; }
+    .tile:has(.tile-check:checked) { counter-increment:chosen; }
+    .line-markers { position:absolute; width:0; height:0; overflow:hidden; }
+    .line-markers span { position:absolute; font-size:0; }
+    #count::before { content:counter(chosen); }
+    #bingoCount::before { content:counter(bingo); }
+    #result .won { display:none; }
+    #result .default { display:block; }
+    #result .won small { font-size:11px; font-weight:500; color:var(--sub); }
+    #result .won small::before { content:counter(bingo) "ライン成立！"; }
+    #result .default small { display:block; margin-top:5px; color:var(--sub); font-size:11px; font-weight:500; }
+
+    /* CSS-only BINGO tally (works even when a file preview blocks JavaScript). */
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(5) .tile-check:checked) + .line-markers .marker-0 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked) + .line-markers .marker-1 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked) + .line-markers .marker-2 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked) + .line-markers .marker-3 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(21) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) + .line-markers .marker-4 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) + .line-markers .marker-5 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked) + .line-markers .marker-6 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked) + .line-markers .marker-7 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked) + .line-markers .marker-8 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) + .line-markers .marker-9 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) + .line-markers .marker-10 { counter-increment: bingo; }
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) + .line-markers .marker-11 { counter-increment: bingo; }
+
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(5) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(21) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .won,
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) ~ #result .won { display:block; color:var(--rose-dark); font-size:21px; }
+
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(5) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(21) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(6) .tile-check:checked):has(.tile:nth-child(11) .tile-check:checked):has(.tile:nth-child(16) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(2) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(12) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(22) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(3) .tile-check:checked):has(.tile:nth-child(8) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(18) .tile-check:checked):has(.tile:nth-child(23) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(4) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(14) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(24) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(10) .tile-check:checked):has(.tile:nth-child(15) .tile-check:checked):has(.tile:nth-child(20) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(1) .tile-check:checked):has(.tile:nth-child(7) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(19) .tile-check:checked):has(.tile:nth-child(25) .tile-check:checked) ~ #result .default,
+    #board:has(.tile:nth-child(5) .tile-check:checked):has(.tile:nth-child(9) .tile-check:checked):has(.tile:nth-child(13) .tile-check:checked):has(.tile:nth-child(17) .tile-check:checked):has(.tile:nth-child(21) .tile-check:checked) ~ #result .default { display:none; }
+
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">LOVE &amp; BOUNDARIES</p>
+  <h1>浮気？ 浮気じゃない？<br>BINGO ♡</h1>
+  <p class="intro">「これは浮気」だと思ったマスをタップ。<br>2度目のタップで解除<br>縦・横・斜めに5マス揃うとビンゴ。お前、何個ビンゴ！？</p>
+  <form id="bingo-form" autocomplete="off">
+  <section class="paper" aria-label="浮気判定ビンゴカード">
+    <div id="board" class="board">
+      <label class="tile" data-index="0"><input class="tile-check" type="checkbox" aria-label="異性と2人きりでゲームを1時間以上(配信外) を浮気と判定"/><span class="phrase">異性と2人きりでゲームを1時間以上(配信外)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="1"><input class="tile-check" type="checkbox" aria-label="異性と2人きりで帰りのタクシー を浮気と判定"/><span class="phrase">異性と2人きりで帰りのタクシー</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="2"><input class="tile-check" type="checkbox" aria-label="異性におはおやメッセージ送る を浮気と判定"/><span class="phrase">異性におはおやメッセージ送る</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="3"><input class="tile-check" type="checkbox" aria-label="異性と話して食いたくなった物を同日にUber を浮気と判定"/><span class="phrase">異性と話して食いたくなった物を同日にUber</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="4"><input class="tile-check" type="checkbox" aria-label="異性にスタバチケットとかアマギフ贈る を浮気と判定"/><span class="phrase">異性にスタバチケットとかアマギフ贈る</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="5"><input class="tile-check" type="checkbox" aria-label="異性と深夜にメシ行く を浮気と判定"/><span class="phrase">異性と深夜にメシ行く</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="6"><input class="tile-check" type="checkbox" aria-label="異性に仕事関連の相談 を浮気と判定"/><span class="phrase">異性に仕事関連の相談</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="7"><input class="tile-check" type="checkbox" aria-label="異性を仕事以外で家に呼んで2人きり を浮気と判定"/><span class="phrase">異性を仕事以外で家に呼んで2人きり</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="8"><input class="tile-check" type="checkbox" aria-label="異性と2人きりで映画同時視聴 を浮気と判定"/><span class="phrase">異性と2人きりで映画同時視聴</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="9"><input class="tile-check" type="checkbox" aria-label="異性と深夜のコンビニ を浮気と判定"/><span class="phrase">異性と深夜のコンビニ</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="10"><input class="tile-check" type="checkbox" aria-label="異性の家の近くに後から引っ越す を浮気と判定"/><span class="phrase">異性の家の近くに後から引っ越す</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="11"><input class="tile-check" type="checkbox" aria-label="悩んだ時に恋人より異性にまず聞く を浮気と判定"/><span class="phrase">悩んだ時に恋人より異性にまず聞く</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile center" data-index="12"><input class="tile-check" type="checkbox" aria-label="恋人以外とキス を浮気と判定"/><span class="phrase">恋人以外とキス</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="13"><input class="tile-check" type="checkbox" aria-label="2人きりでハウジング(ゲーム) を浮気と判定"/><span class="phrase">2人きりでハウジング(ゲーム)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="14"><input class="tile-check" type="checkbox" aria-label="2人きりでランク(ゲーム) を浮気と判定"/><span class="phrase">2人きりでランク(ゲーム)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="15"><input class="tile-check" type="checkbox" aria-label="自分より先に異性と予定組む を浮気と判定"/><span class="phrase">自分より先に異性と予定組む</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="16"><input class="tile-check" type="checkbox" aria-label="2人で新しいゲームを同時に始める を浮気と判定"/><span class="phrase">2人で新しいゲームを同時に始める</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="17"><input class="tile-check" type="checkbox" aria-label="異性と個別の帯がある を浮気と判定"/><span class="phrase">異性と個別の帯がある</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="18"><input class="tile-check" type="checkbox" aria-label="異性と二人きりで猥談をする を浮気と判定"/><span class="phrase">異性と二人きりで猥談をする</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="19"><input class="tile-check" type="checkbox" aria-label="異性と二人きりで恋バナをする を浮気と判定"/><span class="phrase">異性と二人きりで恋バナをする</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="20"><input class="tile-check" type="checkbox" aria-label="異性と描写を回す(日常) を浮気と判定"/><span class="phrase">異性と描写を回す(日常)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="21"><input class="tile-check" type="checkbox" aria-label="異性と描写を回す(戦闘) を浮気と判定"/><span class="phrase">異性と描写を回す(戦闘)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="22"><input class="tile-check" type="checkbox" aria-label="異性と描写を回す(スキンシップ) を浮気と判定"/><span class="phrase">異性と描写を回す(スキンシップ)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="23"><input class="tile-check" type="checkbox" aria-label="異性と描写を回す(R18) を浮気と判定"/><span class="phrase">異性と描写を回す(R18)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+      <label class="tile" data-index="24"><input class="tile-check" type="checkbox" aria-label="異性と描写を回す(R18G) を浮気と判定"/><span class="phrase">異性と描写を回す(R18G)</span><span class="stamp" aria-hidden="true">浮気！</span></label>
+    </div>
+    <div class="line-markers" aria-hidden="true"><span class="marker-0"></span><span class="marker-1"></span><span class="marker-2"></span><span class="marker-3"></span><span class="marker-4"></span><span class="marker-5"></span><span class="marker-6"></span><span class="marker-7"></span><span class="marker-8"></span><span class="marker-9"></span><span class="marker-10"></span><span class="marker-11"></span></div>
+    <div class="stats">
+      <div class="stat"><strong id="count" aria-label="浮気判定数"></strong><span>／25 浮気判定</span></div>
+      <div class="stat"><strong id="bingoCount" aria-label="ビンゴの数"></strong><span>BINGO</span></div>
+    </div>
+    <div id="result" class="result" role="status" aria-live="polite">
+      <div class="default">あなたの浮気ラインはどこ？<small>ビンゴは全12ライン</small></div>
+      <div class="won">♡ BINGO！ ♡<small></small></div>
+    </div>
+  </section>
+  <div class="actions">
+    <button class="reset" id="reset" type="reset">判定をリセット</button>
+    <button class="shuffle" id="shuffle" type="button" disabled>お題をシャッフル</button>
+  </div>
+  </form>
+  <p class="footnote">中央は必ず「恋人以外とキス」。<br>正解はなし！ 価値観の違いを楽しんでね。<br>対応ブラウザならシャッフルと判定の自動保存もできるよ。</p>
+</main>
+
+<script>
+/* JavaScriptはシャッフルと保存だけ。表示、判定、リセットはHTML+CSSで可能。 */
+(function(){
+  'use strict';
+  var board = document.getElementById('board');
+  var tiles = Array.prototype.slice.call(board.querySelectorAll('.tile'));
+  var checks = tiles.map(function(tile){return tile.querySelector('input');});
+  var phrases = tiles.map(function(tile){return tile.querySelector('.phrase');});
+  var initial = phrases.map(function(p){return p.textContent;});
+  var center = initial[12];
+  var order = initial.slice();
+  var key = 'uwaki-bingo-v4';
+  function store(){
+    try { localStorage.setItem(key,JSON.stringify({order:order,chosen:checks.map(function(c){return c.checked;})})); }
+    catch(e) {}
+  }
+  function apply(){
+    order.forEach(function(topic,i){
+      phrases[i].textContent=topic;
+      checks[i].setAttribute('aria-label',topic+' を浮気と判定');
+    });
+  }
+  try {
+    var saved = JSON.parse(localStorage.getItem(key) || 'null');
+    if(saved && Array.isArray(saved.order) && saved.order.length===25 &&
+        saved.order[12]===center && new Set(saved.order).size===25 &&
+        saved.order.every(function(t){return initial.indexOf(t)!==-1;})){
+      order=saved.order;
+      apply();
+      if(Array.isArray(saved.chosen)){
+        checks.forEach(function(c,i){c.checked=saved.chosen[i]===true;});
+      }
+    }
+  } catch(e) {}
+  board.addEventListener('change',store);
+  // Native form reset works even if the preview disables JavaScript.
+  // The reset event happens BEFORE checkboxes are cleared: save after it completes.
+  document.getElementById('bingo-form').addEventListener('reset',function(){
+    setTimeout(store,0);
+  });
+  var shuffleButton = document.getElementById('shuffle');
+  shuffleButton.disabled = false;
+  shuffleButton.addEventListener('click',function(){
+    if(checks.some(function(c){return c.checked;}) && !confirm('判定をリセットしてお題をシャッフルする？'))return;
+    var other = order.filter(function(t){return t!==center;});
+    for(var i=other.length-1; i>0; i--){
+      var j=Math.floor(Math.random()*(i+1));
+      var temp=other[i];other[i]=other[j];other[j]=temp;
+    }
+    other.splice(12,0,center);
+    order=other;
+    checks.forEach(function(c){c.checked=false;});
+    apply(); store();
+  });
+})();
+</script>
+
+</body>
+</html>
